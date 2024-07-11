@@ -1,0 +1,26 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="practice.server.apps.goals.tests.test_balance.TestBalanceChange.user" />
+          <option value="practice.server.apps.goals.tests.test_percents.TestBalanceChange.user" />
+          <option value="practice.server.apps.quotes.models.quote.Quote.*" />
+          <option value="server.api.users.urls.api" />
+          <option value="server.api.users.views.*" />
+          <option value="api.users.models.User.DoesNotExist" />
+          <option value="rest_framework_simplejwt.tokens.Token.access_token" />
+          <option value="api.lessons.models.Level.*" />
+          <option value="api.lessons.models.Lesson.*" />
+          <option value="api.lessons.models.KeyboardType.*" />
+          <option value="common.management.commands.factories.KeyboardTypeFactory.*" />
+          <option value="api.progress.models.Progress.*" />
+          <option value="api.users.models.Award.*" />
+          <option value="api.users.models.Feedback.*" />
+          <option value="common.management.commands._factories.LessonFactory.*" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
