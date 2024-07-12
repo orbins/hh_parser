@@ -1,1 +1,2 @@
 *.env
+/vacancies_db.sqlite

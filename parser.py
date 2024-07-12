@@ -14,6 +14,9 @@ class Parser:
         self.url = url
         self.text = text
 
+    async def get_vacancies_list(self):
+        ...
+
     async def scrape_vacancies(self, page):
         params = {
             "page": page,
@@ -33,7 +36,8 @@ class Parser:
             remote_work = vacancy.find("span", {"data-qa": "vacancy-label-remote-work-schedule"})
             grade = vacancy.find("span", class_="fake-magritte-primary-text--Hdw8FvkOzzOcoR4xXWni compensation-text--kTJ0_rp54B2vNeZ3CTt2 separate-line-on-xs--mtby5gO4J0ixtqzW38wh")
             city = vacancy.find("span", {"data-qa": "vacancy-serp__vacancy-address"}).find("span", class_="fake-magritte-primary-text--Hdw8FvkOzzOcoR4xXWni")
-            print(f"name: {name.text}, company: {company.text}, experience: {experience.text if experience else None}, remote_work: {True if remote_work else False}, city: {city.text}, grage: {grade.text if grade else None}")
+            link = vacancy.find("a", {"target": "_blank"}).get("href")
+            print(f"name: {name.text}, company: {company.text}, experience: {experience.text if experience else 'Не указан'}, remote_work: {True if remote_work else 'Отсутствует'}, city: {city.text}, grade: {grade.text if grade else 'Не указан'}, link: {link}")
 
     async def main(self):
         async with aiohttp.ClientSession() as session:
