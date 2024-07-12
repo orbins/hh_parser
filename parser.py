@@ -12,58 +12,29 @@ load_dotenv()
 
 class Parser:
 
-    def __init__(self, url, text):
-        self.url = url
-        self.default_filter_text = text
-        self.db_path = Path.cwd() / "vacancies_db.sqlite"
+    def __init__(self, url=None, text=None):
+        self.url = url or os.getenv("URL")
+        self.default_filter_text = text or os.getenv("TEXT")
+        self._db_path = Path.cwd() / "vacancies_db.sqlite"
 
     async def main(self):
+        await self.clear_vacancies_table()
+        pages_count = await self.get_pages_count()
         tasks = []
-        pages_count = await self._get_finded_pages_count()
         for num in range(pages_count):
-            tasks.append(asyncio.create_task(self._parse_all_vacs_cards_on_page(num)))
-        total_vacs = await asyncio.gather(*tasks)
-        tasks = []
-        # Удалять все записи перед сохранением
-        for page_vacs in total_vacs:
-            tasks.append(asyncio.create_task(self.save_vacs_to_db(page_vacs)))
+            tasks.append(asyncio.create_task(self.save_all_vacs_on_page(num)))
         await asyncio.gather(*tasks)
 
-    async def save_vacs_to_db(self, vacancies):
-        # Использовать асинхронную итерацию
-        for vacancy in vacancies:
-            name = vacancy.find("span", class_="vacancy-name--c1Lay3KouCl7XasYakLk serp-item__title-link").text
-            company = vacancy.find("span", class_="company-info-text--vgvZouLtf8jwBmaD1xgp").text
-            experience = vacancy.find("span", {"data-qa": "vacancy-serp__vacancy-work-experience"})
-            remote_work = vacancy.find("span", {"data-qa": "vacancy-label-remote-work-schedule"})
-            grade = vacancy.find(
-                "span",
-                class_="fake-magritte-primary-text--Hdw8FvkOzzOcoR4xXWni compensation-text--kTJ0_rp54B2vNeZ3CTt2 separate-line-on-xs--mtby5gO4J0ixtqzW38wh"
+    async def clear_vacancies_table(self):
+        print('Очистка БД')
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                "DELETE FROM vacancies"
             )
-            city = vacancy.find("span", {"data-qa": "vacancy-serp__vacancy-address"}).find("span", class_="fake-magritte-primary-text--Hdw8FvkOzzOcoR4xXWni")
-            link = vacancy.find("a", {"target": "_blank"}).get("href")
-            async with aiosqlite.connect(self.db_path) as db:
-                await db.execute(
-                    """
-                        INSERT INTO vacancies (name, company, experience, remote_work, grade, city, link)  VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """,
-                    (name, company, experience.text if experience else None, remote_work.text if remote_work else None, grade.text if grade else None, city.text if city else None, link),
-                )
-                await db.commit()
+            await db.commit()
 
-    async def _parse_all_vacs_cards_on_page(self, page_number, filter_text=None):
-        params = {
-            "page": page_number,
-            "text": filter_text or self.default_filter_text
-        }
-        async with aiohttp.ClientSession() as session:
-            async with session.get(self.url, params=params) as response:
-                html = await response.text()
-        soup = BeautifulSoup(html, 'html.parser')
-        return soup.find_all("div", class_="vacancy-card--z_UXteNo7bRGzxWVcL7y font-inter")
-
-    async def _get_finded_pages_count(self, filter_text=None):
-        page =  await self._get_first_page_with_vacs(filter_text)
+    async def get_pages_count(self):
+        page = await self._get_page()
         soup = BeautifulSoup(page, 'html.parser')
         pager = soup.find("div", class_="pager")
         max_page_block = pager.find("div", class_="pager-item-not-in-short-range")
@@ -74,16 +45,76 @@ class Parser:
             pages_count = len(page_blocks)
         return pages_count
 
-    async def _get_first_page_with_vacs(self, filter_text=None):
-        params = {"text": filter_text or self.default_filter_text}
+    async def save_all_vacs_on_page(self, page_number):
+        page = await self._get_page(page_number)
+        print(f"Сохранение вакансий на странице {page_number}")
+        soup = BeautifulSoup(page, 'html.parser')
+        vacs_cards = soup.find_all("div", class_="vacancy-card--z_UXteNo7bRGzxWVcL7y font-inter")
+        tasks = []
+        for vacancy in vacs_cards:
+            tasks.append(asyncio.create_task(self._save_vacancy(vacancy)))
+        await asyncio.gather(*tasks)
+
+    async def _get_page(self, page_number=0):
+        print(f"Получение страницы {page_number}")
+        params = {
+            "text": self.default_filter_text,
+            "page": page_number
+        }
         async with aiohttp.ClientSession() as session:
             async with session.get(self.url, params=params) as response:
                 return await response.text()
 
+    async def _save_vacancy(self, vacancy):
+        data = await self._get_vacancy_data(vacancy)
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                """
+                    INSERT INTO vacancies (
+                        name, company, experience, remote_work, grade, city, link
+                    )
+                    VALUES (
+                        :name, :company, :experience, :remote_work, :grade, :city, :link
+                    )
+                    """,
+                data
+            )
+            await db.commit()
+
+    @staticmethod
+    async def _get_vacancy_data(vacancy):
+        name = vacancy.find("span", class_="vacancy-name--c1Lay3KouCl7XasYakLk serp-item__title-link").text
+        company = vacancy.find("span", class_="company-info-text--vgvZouLtf8jwBmaD1xgp").text
+        city = (vacancy.find("span", {"data-qa": "vacancy-serp__vacancy-address"})
+                .find("span", class_="fake-magritte-primary-text--Hdw8FvkOzzOcoR4xXWni").text)
+        link = vacancy.find("a", {"target": "_blank"}).get("href")
+        try:
+            experience = vacancy.find("span", {"data-qa": "vacancy-serp__vacancy-work-experience"}).text
+        except AttributeError:
+            experience = "Не указан"
+        try:
+            remote_work = vacancy.find("span", {"data-qa": "vacancy-label-remote-work-schedule"}).text
+        except AttributeError:
+            remote_work = "Не указана"
+        try:
+            grade = vacancy.find(
+                "span",
+                class_="fake-magritte-primary-text--Hdw8FvkOzzOcoR4xXWni compensation-"
+                       "text--kTJ0_rp54B2vNeZ3CTt2 separate-line-on-xs--mtby5gO4J0ixtqzW38wh"
+            ).text
+        except AttributeError:
+            grade = "Не указан"
+        return {
+            "name": name,
+            "company": company,
+            "experience": experience,
+            "remote_work": remote_work,
+            "grade": grade,
+            "city": city,
+            "link": link
+        }
+
 
 if __name__ == '__main__':
-    parser = Parser(
-        url=os.getenv("URL"),
-        text=os.getenv("TEXT")
-    )
+    parser = Parser()
     asyncio.run(parser.main())
