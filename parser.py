@@ -13,27 +13,26 @@ load_dotenv()
 class Parser:
 
     def __init__(self, url=None, text=None):
-        self.url = url or os.getenv("URL")
-        self.default_filter_text = text or os.getenv("TEXT")
+        self.url = url or os.getenv("DEFAULT_HH_URL")
+        self.default_filter_text = text or os.getenv("DEFAULT_TEXT_FILTER")
         self._db_path = Path.cwd() / "vacancies_db.sqlite"
 
-    async def main(self):
-        await self.clear_vacancies_table()
-        pages_count = await self.get_pages_count()
+    async def save_vacancies_by_filter(self):
+        await self._clear_vacancies_table()
+        pages_count = await self._get_pages_count()
         tasks = []
         for num in range(pages_count):
-            tasks.append(asyncio.create_task(self.save_all_vacs_on_page(num)))
+            tasks.append(asyncio.create_task(self._save_all_vacancies_on_page(num)))
         await asyncio.gather(*tasks)
 
-    async def clear_vacancies_table(self):
-        print('Очистка БД')
+    async def _clear_vacancies_table(self):
         async with aiosqlite.connect(self._db_path) as db:
             await db.execute(
                 "DELETE FROM vacancies"
             )
             await db.commit()
 
-    async def get_pages_count(self):
+    async def _get_pages_count(self):
         page = await self._get_page()
         soup = BeautifulSoup(page, 'html.parser')
         pager = soup.find("div", class_="pager")
@@ -45,18 +44,16 @@ class Parser:
             pages_count = len(page_blocks)
         return pages_count
 
-    async def save_all_vacs_on_page(self, page_number):
+    async def _save_all_vacancies_on_page(self, page_number):
         page = await self._get_page(page_number)
-        print(f"Сохранение вакансий на странице {page_number}")
         soup = BeautifulSoup(page, 'html.parser')
-        vacs_cards = soup.find_all("div", class_="vacancy-card--z_UXteNo7bRGzxWVcL7y font-inter")
+        vacancies_cards = soup.find_all("div", class_="vacancy-card--z_UXteNo7bRGzxWVcL7y font-inter")
         tasks = []
-        for vacancy in vacs_cards:
+        for vacancy in vacancies_cards:
             tasks.append(asyncio.create_task(self._save_vacancy(vacancy)))
         await asyncio.gather(*tasks)
 
     async def _get_page(self, page_number=0):
-        print(f"Получение страницы {page_number}")
         params = {
             "text": self.default_filter_text,
             "page": page_number
@@ -95,7 +92,7 @@ class Parser:
         try:
             remote_work = vacancy.find("span", {"data-qa": "vacancy-label-remote-work-schedule"}).text
         except AttributeError:
-            remote_work = "Не указана"
+            remote_work = "Не указано"
         try:
             grade = vacancy.find(
                 "span",
@@ -117,4 +114,4 @@ class Parser:
 
 if __name__ == '__main__':
     parser = Parser()
-    asyncio.run(parser.main())
+    asyncio.run(parser.save_vacancies_by_filter())
