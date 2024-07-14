@@ -4,10 +4,13 @@ from pathlib import Path
 import aiosqlite
 
 
-async def main():
-    db_filepath = Path.cwd()/"vacancies_db.sqlite"
-    if not db_filepath.exists():
-        async with aiosqlite.connect(db_filepath) as db:
+class DataBaseManager:
+
+    def __init__(self):
+        self._db_path = Path.cwd() / "vacancies_db.sqlite"
+
+    async def create_db(self):
+        async with aiosqlite.connect(self._db_path) as db:
             await db.execute(
                 """
                 CREATE TABLE IF NOT EXISTS vacancies (
@@ -23,7 +26,18 @@ async def main():
                 """
             )
             await db.commit()
+            await db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS filters (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                text TEXT NOT NULL,
+                );
+                """
+            )
+            await db.commit()
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    manager = DataBaseManager()
+    manager.create_db()

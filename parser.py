@@ -12,8 +12,8 @@ load_dotenv()
 
 class Parser:
 
-    def __init__(self, url=None, text=None):
-        self.url = url or os.getenv("DEFAULT_HH_URL")
+    def __init__(self, text=None):
+        self._url = os.getenv("HH_URL")
         self.default_filter_text = text or os.getenv("DEFAULT_TEXT_FILTER")
         self._db_path = Path.cwd() / "vacancies_db.sqlite"
 
@@ -59,7 +59,7 @@ class Parser:
             "page": page_number
         }
         async with aiohttp.ClientSession() as session:
-            async with session.get(self.url, params=params) as response:
+            async with session.get(self._url, params=params) as response:
                 return await response.text()
 
     async def _save_vacancy(self, vacancy):
@@ -110,6 +110,41 @@ class Parser:
             "city": city,
             "link": link
         }
+
+    async def create_filter(self, name, text):
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                """
+                    INSERT INTO filters (
+                        name, text
+                    )
+                    VALUES (
+                        :name, :text
+                    )
+                    """,
+                (name, text,)
+            )
+            await db.commit()
+
+    async def delete_filter(self, pk):
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                """
+                    DELETE FROM filters
+                    WHERE id = ?
+                    """,
+                (pk,)
+            )
+            await db.commit()
+
+    async def get_all_filters(self):
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                """
+                 SELECT id, name, text FROM filters
+                """,
+            )
+            await db.commit()
 
 
 if __name__ == '__main__':
