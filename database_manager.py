@@ -38,6 +38,63 @@ class DataBaseManager:
             )
             await db.commit()
 
+    async def create_filter(self, name, text):
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                """
+                    INSERT INTO filters (
+                        name, text
+                    )
+                    VALUES (
+                        :name, :text
+                    )
+                    """,
+                (name, text,)
+            )
+            await db.commit()
+
+    async def delete_filter(self, pk):
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                """
+                    DELETE FROM filters
+                    WHERE id = ?
+                    """,
+                (pk,)
+            )
+            await db.commit()
+
+    async def get_all_filters(self):
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                """
+                 SELECT id, name, text FROM filters
+                """,
+            )
+            await db.commit()
+
+    async def create_vacancy(self, data):
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                """
+                    INSERT INTO vacancies (
+                        name, company, experience, remote_work, grade, city, link
+                    )
+                    VALUES (
+                        :name, :company, :experience, :remote_work, :grade, :city, :link
+                    )
+                    """,
+                **data
+            )
+            await db.commit()
+
+    async def clear_vacancies_table(self):
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                "DELETE FROM vacancies"
+            )
+            await db.commit()
+
 
 if __name__ == '__main__':
     manager = DataBaseManager()
