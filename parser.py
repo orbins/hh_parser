@@ -17,7 +17,23 @@ class Parser:
         self._url = os.getenv("HH_URL")
         self._default_filter_text = os.getenv("DEFAULT_TEXT_FILTER")
 
-    async def get_page(self, url=None, filter_text=None, page_number=0):
+    async def get_vacancies_list(self):
+        return self._db_manager.get_all_vacancies()
+
+    async def get_vacancies_details(self, url):
+        page = await self._get_page(url)
+        return await self.get_vacancies_details(page)
+
+    async def parse_vacancies_by_filter(self, filter_):
+        page = self._get_page(filter_text=filter_)
+        total_finded_pages = await self._get_pages_count(page)
+        tasks = []
+        for num in range(total_finded_pages):
+            page = await self._get_page(filter_text=filter_, page_number=num)
+            tasks.append(asyncio.create_task(self._parse_all_vacancies_on_page(page)))
+        await asyncio.gather(*tasks)
+
+    async def _get_page(self, url=None, filter_text=None, page_number=0):
         params = {
             "text": filter_text or self._default_filter_text,
             "page": page_number
@@ -28,7 +44,7 @@ class Parser:
                 return await response.text()
 
     @staticmethod
-    async def get_pages_count(head_page):
+    async def _get_pages_count(head_page):
         soup = BeautifulSoup(head_page, 'html.parser')
         pager = soup.find("div", class_="pager")
         max_page_block = pager.find("div", class_="pager-item-not-in-short-range")
@@ -39,7 +55,7 @@ class Parser:
             pages_count = len(page_blocks)
         return pages_count
 
-    async def parse_all_vacancies_on_page(self, page):
+    async def _parse_all_vacancies_on_page(self, page):
         soup = BeautifulSoup(page, 'html.parser')
         vacancies_cards = soup.find_all("div", class_="vacancy-card--z_UXteNo7bRGzxWVcL7y font-inter")
         tasks = []
@@ -78,10 +94,10 @@ class Parser:
             "city": city,
             "link": link
         }
-        await self._db_manager.create_vacancy(vacancy_data)
+        await self._db_manager.add_vacancy(vacancy_data)
 
     @staticmethod
-    async def get_vacancy_details(page):
+    async def parse_vacancy_details(page):
         soup = BeautifulSoup(page, 'html.parser')
         description_block = soup.find("div", {"data-qa": "vacancy-description"})
         text = description_block.get_text()
@@ -89,8 +105,3 @@ class Parser:
         chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
         text = "\n".join(chunk for chunk in chunks if chunk)
         return text
-
-
-# if __name__ == '__main__':
-#     parser = Parser()
-#     asyncio.run(parser.parse_vacancies_by_filter())

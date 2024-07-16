@@ -22,7 +22,6 @@ class DataBaseManager:
                 grade TEXT,
                 city TEXT,
                 link TEXT
-                description TEXT
                 );
                 """
             )
@@ -38,7 +37,7 @@ class DataBaseManager:
             )
             await db.commit()
 
-    async def create_filter(self, name, text):
+    async def add_filter(self, name, text):
         async with aiosqlite.connect(self._db_path) as db:
             await db.execute(
                 """
@@ -73,7 +72,7 @@ class DataBaseManager:
             )
             await db.commit()
 
-    async def create_vacancy(self, data):
+    async def add_vacancy(self, data):
         async with aiosqlite.connect(self._db_path) as db:
             await db.execute(
                 """
@@ -88,6 +87,16 @@ class DataBaseManager:
             )
             await db.commit()
 
+    async def get_all_vacancies(self):
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                """
+                SELECT name, company, experience, remote_work, grade, city, link
+                FROM vacancies
+                """
+            )
+            await db.commit()
+
     async def clear_vacancies_table(self):
         async with aiosqlite.connect(self._db_path) as db:
             await db.execute(
@@ -95,7 +104,3 @@ class DataBaseManager:
             )
             await db.commit()
 
-
-if __name__ == '__main__':
-    manager = DataBaseManager()
-    manager.create_db()
