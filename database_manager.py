@@ -22,6 +22,7 @@ class DataBaseManager:
                 grade TEXT,
                 city TEXT,
                 link TEXT
+                description TEXT
                 );
                 """
             )

@@ -146,6 +146,19 @@ class Parser:
             )
             await db.commit()
 
+    @staticmethod
+    async def get_vacancy_details(url):
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                page = await response.text()
+                soup = BeautifulSoup(page, 'html.parser')
+                description_block = soup.find("div", {"data-qa": "vacancy-description"})
+                text = description_block.get_text()
+                lines = (line.strip() for line in text.splitlines())
+                chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                text = "\n".join(chunk for chunk in chunks if chunk)
+                return text
+
 
 if __name__ == '__main__':
     parser = Parser()
