@@ -10,26 +10,30 @@ from database_manager import DataBaseManager
 load_dotenv()
 
 
+class IncorrectPageFormatError(Exception):
+    pass
+
+
 class Parser:
 
     def __init__(self):
         self._db_manager = DataBaseManager()
-        self._url = os.getenv("HH_URL")
-        self._default_filter_text = os.getenv("DEFAULT_TEXT_FILTER")
+        self._url = os.getenv("DEFAULT_HH_URL")
+        self._default_filter_text = os.getenv("DEFAULT_FILTER_TEXT")
 
     async def get_vacancies_list(self):
         return self._db_manager.get_all_vacancies()
 
     async def get_vacancies_details(self, url):
         page = await self._get_page(url)
-        return await self.get_vacancies_details(page)
+        return await self.parse_vacancy_details(page)
 
-    async def parse_vacancies_by_filter(self, filter_):
-        page = self._get_page(filter_text=filter_)
+    async def parse_vacancies_by_filter(self, filter_text=None):
+        page = await self._get_page(filter_text=filter_text)
         total_finded_pages = await self._get_pages_count(page)
         tasks = []
         for num in range(total_finded_pages):
-            page = await self._get_page(filter_text=filter_, page_number=num)
+            page = await self._get_page(filter_text=filter_text, page_number=num)
             tasks.append(asyncio.create_task(self._parse_all_vacancies_on_page(page)))
         await asyncio.gather(*tasks)
 
@@ -47,7 +51,10 @@ class Parser:
     async def _get_pages_count(head_page):
         soup = BeautifulSoup(head_page, 'html.parser')
         pager = soup.find("div", class_="pager")
-        max_page_block = pager.find("div", class_="pager-item-not-in-short-range")
+        try:
+            max_page_block = pager.find("div", class_="pager-item-not-in-short-range")
+        except AttributeError:
+            raise IncorrectPageFormatError("Страница не содержит блок с нумерацией")
         if max_page_block:
             pages_count = int(max_page_block.find("span").text)
         else:
@@ -59,8 +66,11 @@ class Parser:
         soup = BeautifulSoup(page, 'html.parser')
         vacancies_cards = soup.find_all("div", class_="vacancy-card--z_UXteNo7bRGzxWVcL7y font-inter")
         tasks = []
-        for vacancy in vacancies_cards:
-            tasks.append(asyncio.create_task(self._parse_vacancy(vacancy)))
+        try:
+            for vacancy in vacancies_cards:
+                tasks.append(asyncio.create_task(self._parse_vacancy(vacancy)))
+        except TypeError:
+            raise IncorrectPageFormatError("Страница не содержит вакансии")
         await asyncio.gather(*tasks)
 
     async def _parse_vacancy(self, vacancy):
@@ -100,7 +110,10 @@ class Parser:
     async def parse_vacancy_details(page):
         soup = BeautifulSoup(page, 'html.parser')
         description_block = soup.find("div", {"data-qa": "vacancy-description"})
-        text = description_block.get_text()
+        try:
+            text = description_block.get_text()
+        except AttributeError:
+            raise IncorrectPageFormatError("Страница не содержит блок с описанием вакансии")
         lines = (line.strip() for line in text.splitlines())
         chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
         text = "\n".join(chunk for chunk in chunks if chunk)

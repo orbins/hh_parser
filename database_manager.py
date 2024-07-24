@@ -83,7 +83,7 @@ class DataBaseManager:
                         :name, :company, :experience, :remote_work, :grade, :city, :link
                     )
                     """,
-                **data
+                data
             )
             await db.commit()
 
